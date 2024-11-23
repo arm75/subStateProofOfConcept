@@ -1,35 +1,47 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { createMachine, state, transition, invoke } from 'robot3'
+import { useMachine } from 'react-robot'
 
-function App() {
-  const [count, setCount] = useState(0)
+const substateMachine = createMachine({
+    substate1: state(transition('next', 'substate2')),
+    substate2: state(transition('back', 'substate1'), transition('done', 'done')),
+    done: state(),
+    ///substate4: final('done'),
+})
 
-  return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+const parentMachine = createMachine({
+    state1: state(transition('start', 'state2')),
+    state2: invoke(substateMachine, {
+        onDone: transition('done', 'state3'), // Listen for 'done' from substate and transition to 'state3'
+    }), // This will send 'finishSubstate' when the substate machine finishes
+    state3: state(transition('finishSubstate', 'state3')), // Parent listens for 'finishSubstate' event
+})
+
+const App = () => {
+    const [parentCurrent, parentSend] = useMachine(parentMachine)
+    const [subCurrent, subSend] = useMachine(substateMachine)
+
+    const parentState = parentCurrent.name
+    const subState = subCurrent.name
+
+    return (
+        <>
+            <h1>State: {parentState}</h1>
+            {parentState === 'state1' && <button onClick={() => parentSend('start')}>state start</button>}
+            {parentState === 'state2' && (
+                <div className="bg-slate-800 rounded-md">
+                    <h2>SubState: {subState}</h2>
+                    {subState === 'substate1' && <button onClick={() => subSend('next')}>subState next</button>}
+                    {subState === 'substate2' && (
+                        <>
+                            <button onClick={() => subSend('back')}>subState back</button>
+                            <button onClick={() => subSend('done')}>subState done</button>
+                        </>
+                    )}
+                </div>
+            )}
+            {parentState === 'state3' && <h2>Process Complete!</h2>}
+        </>
+    )
 }
 
 export default App
